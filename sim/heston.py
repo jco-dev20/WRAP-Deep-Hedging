@@ -3,8 +3,11 @@ Generate simulated stock price paths using Heston model. This generated data wil
 """
 import math
 import numpy as np
+import torch
 from dataclasses import dataclass
 
+#seed = 42
+#rng = np.random.default_rng(seed)
 
 @dataclass(frozen=True, kw_only=True)
 class HestonParams:
@@ -54,6 +57,46 @@ class HestonParams:
             raise ValueError(f"rho must be in [-1, 1], got {self.rho}")
 
 
+def cir_exact_step(v: np.ndarray, dt: float, params: HestonParams, rng):
+    exp_scale = np.exp(-1.0 * params.kappa * dt)
+    c = (params.xi)**2 * (1 - exp_scale) / (4 * params.kappa)
+    d = (4.0 * params.kappa * params.theta) / (params.xi)**2
+    f_lambda = v * exp_scale / c
+    Y = rng.noncentral_chisquare(d, f_lambda)
 
+    return c * Y
 
+def log_price_step(log_s: np.ndarray, v: float, v_next: float, z: float, dt: float, params: HestonParams):
+    int_var = 0.5 * (v + v_next) * dt
+    M = (v_next - v - params.kappa * params.theta * dt + params.kappa * int_var) / params.xi
+    log_s_next = log_s + params.mu * dt - 0.5 * int_var + params.rho * M + np.sqrt(1 - params.rho**2) * np.sqrt(int_var) * z
+    return log_s_next
 
+def simulate_heston(params: HestonParams, n_paths: int, n_steps: int, dt: float, rng):
+
+    if n_paths <= 0:
+        raise ValueError(f"n_paths must be > 0, got {n_paths}")
+    if n_steps <= 0:
+        raise ValueError(f"n_steps must be > 0, got {n_steps}")
+    if dt <= 0:
+        raise ValueError(f"dt must be > 0, got {dt}")
+
+    X = np.zeros((n_paths, n_steps + 1, 2))
+
+    # Day 0: every path starts from the same price and variance.
+    log_s = np.full(n_paths, math.log(params.s0))  # shape [N]: N copies of log(s0)
+    v = np.full(n_paths, params.v0)                 # shape [N]: N copies of v0
+    X[:, 0, 0] = log_s                              # ":" means "every path"
+    X[:, 0, 1] = v
+
+    for t in range(n_steps):  # t = 0, 1, ..., n_steps - 1
+        # Keep this draw order (variance first, then z) so a seed always gives the same paths.
+        v_next = cir_exact_step(v, dt, params, rng)
+        z = rng.standard_normal(n_paths)
+        log_s = log_price_step(log_s, v, v_next, z, dt, params)  # needs the OLD v and v_next
+        v = v_next  # only now move on to tomorrow
+        X[:, t + 1, 0] = log_s
+        X[:, t + 1, 1] = v
+
+    # Simulate in float64 for accuracy; hand the network a float32 torch tensor.
+    return torch.from_numpy(X).to(torch.float32)
