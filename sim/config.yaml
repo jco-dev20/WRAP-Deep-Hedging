@@ -1,0 +1,23 @@
+name: drifting_heston
+data_seed: 0            # random seed for generating data simulated by heston model
+model_seed: 0           # random seed for neural network
+
+heston:                 # baseline parameters for Heston model simulation
+  s0: 100.0
+  v0: 0.04
+  mu: 0.0
+  kappa: 1.0
+  theta: 0.04
+  xi: 2.0
+  rho: -0.7
+
+grid:
+  n_steps: 30
+  days_per_year: 365    # dt = 1 / days_per_year
+
+data:
+  kind: drifting        # or "stationary"
+  n_blocks: 8
+  paths_per_block: 4000
+  mu_increase: 0.20     # mu rises from 0 to 0.20 across the blocks
+  theta_increase: 0.12  # theta rises from 0.04 to 0.16
