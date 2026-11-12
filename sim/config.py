@@ -10,7 +10,7 @@ from pathlib import Path
 
 import yaml
 
-from heston import HestonParams
+from sim.heston import HestonParams
 
 DATA_KINDS = ("stationary", "drifting")
 

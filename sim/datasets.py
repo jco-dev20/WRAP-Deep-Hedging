@@ -5,8 +5,8 @@ This contains the functionality to generate the datasets which will used to trai
 import torch
 import numpy as np
 from dataclasses import dataclass,replace
-from heston import simulate_heston,HestonParams
-from config import ExperimentConfig
+from sim.heston import simulate_heston,HestonParams
+from sim.config import ExperimentConfig
 
 @dataclass(frozen=True, kw_only=True)
 class PathSet:
